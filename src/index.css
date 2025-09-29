@@ -1,0 +1,14 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Poppins:wght@500;700&display=swap');
+@import "tailwindcss"; 
+
+@layer base {
+  body {
+    @apply bg-[#120829] text-white relative font-sans h-screen overflow-x-hidden;
+    font-family: 'Inter','Poppins','Roboto',sans-serif;
+  }
+}
+
+.profile-photo {
+  @apply w-12 h-12 rounded-full object-cover border-2 border-white shadow-md;
+}
+
