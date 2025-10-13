@@ -15,20 +15,16 @@ const Explore = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
  
-    const user = useSelector((state) => state.user);  
-
-    // Effect for initializing AOS library
+    const user = useSelector((state) => state.user);   
     useEffect(() => {
         AOS.init({ duration: 1000 });
     }, []);
  
     useEffect(() => {
         const fetchUser = async () => { 
-            if (user && Object.keys(user).length > 0) {
-                setLoading(false);
+            if(user && user._id){
                 return;
             }
-
             try { 
                 const res = await axios.get(`${BaseUrl}/profile/view`, {
                     withCredentials: true,  
@@ -43,12 +39,11 @@ const Explore = () => {
         };
 
         fetchUser();
-    }, [dispatch, navigate, user]);  
+    }, []);  
 
     return (
         <div>
             <Header /> 
-            {/* <UserCard user={user} isLoading={loading} /> */}
             <UserCard/>
         </div>
     );
