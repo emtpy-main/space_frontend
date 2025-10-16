@@ -19,7 +19,7 @@ import {
   Home,
   Search,
 } from "@mui/icons-material";
- 
+import ChatHeader from './ChatHeader.jsx'
 const glassStyle =
   "bg-white/5 backdrop-blur-lg border border-white/10 shadow-2xl rounded-2xl";
 
@@ -70,36 +70,7 @@ const MessageInput = ({ onSendMessage }) => {
   );
 };
  
-const ChatHeader = ({ user, onBack }) => (
-  <div className="flex items-center justify-between p-3 border-b border-white/10">
-    <div className="flex items-center">
-      <IconButton
-        sx={{ color: "white" }}
-        onClick={onBack}
-        className="md:hidden"
-      >
-        <ArrowBack />
-      </IconButton>
-      <Avatar
-        src={user.photoUrl}
-        alt={`${user.firstName} ${user.lastName}`}
-        sx={{ width: 45, height: 45, ml: { xs: 1, md: 0 } }}
-      />
-      <h2 className="text-xl font-semibold text-white ml-4">{`${user.firstName} ${user.lastName}`}</h2>
-    </div>
-    <div>
-      <IconButton sx={{ color: "white" }}>
-        <Videocam />
-      </IconButton>
-      <IconButton sx={{ color: "white" }}>
-        <Call />
-      </IconButton>
-      <IconButton sx={{ color: "white" }}>
-        <MoreVert />
-      </IconButton>
-    </div>
-  </div>
-);
+
  
 const MessageBubble = ({ message, loginUserId }) => {
   const isSentByUser = message.senderId === loginUserId;
@@ -212,6 +183,7 @@ const ChatWindow = ({
   onSendMessage,
   isLoading,
   loginUserId,
+  loginEmail,
 }) => {
   const messagesEndRef = useRef(null);
 
@@ -241,7 +213,7 @@ const ChatWindow = ({
         isVisible ? "translate-x-0" : "translate-x-full"
       } md:translate-x-0 z-10`}
     >
-      <ChatHeader user={user} onBack={onBack} />
+      <ChatHeader user={user} onBack={onBack}  loginUserId = {loginUserId} loginEmail = {loginEmail} />
       <div
         className="flex-grow p-4 overflow-y-auto space-y-4"
         style={{

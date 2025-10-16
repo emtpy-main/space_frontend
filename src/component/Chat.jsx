@@ -1,116 +1,37 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { createSocketConnection } from "../utils/socket";
-import {
-  ThemeProvider,
-  createTheme,
-} from "@mui/material"; 
+import { useSocket } from "../utils/socket";
+import { ThemeProvider, createTheme } from "@mui/material";
 import { BaseUrl } from "../utils/constants";
 import { addConnection } from "./store/connectionsSlice";
 import { ContactList } from "./ChatWindow";
 import ChatWindow from "./ChatWindow";
+
 const chatMuiTheme = createTheme({
   palette: { primary: { main: "#5f36a0" }, mode: "dark" },
 });
-
-
-
- 
 
 export default function Chat() {
   const [selectedContact, setSelectedContact] = useState(null);
   const [activeView, setActiveView] = useState("contacts");
   const [messages, setMessages] = useState({});
-  const [isLoading, setIsLoading] = useState(false); 
+  const [isLoading, setIsLoading] = useState(false);
+
   const user = useSelector((store) => store.user);
   const contacts = useSelector((store) => store.connection);
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const socketRef = useRef(null);
 
-  useEffect(() => {
-    if (user?._id) {
-      // Create a single socket connection when the user is available
-      if (!socketRef.current) {
-        socketRef.current = createSocketConnection();
-        console.log("Socket connection established.");
+  // ✅ Always call hook at top-level
+  const { socket } = useSocket();
+  const socketRef = useRef(socket);
 
-        socketRef.current.on("receiveMessage", (newMessage) => {
-          // Determine the correct chat to place the message in
-          const contactId =
-            newMessage.senderId === user._id
-              ? selectedContact?._id
-              : newMessage.senderId;
-          if (contactId) {
-            setMessages((prev) => {
-              const existingMsgs = prev[contactId] || [];
-              // Prevent duplicates if an optimistic message exists
-              if (existingMsgs.some((msg) => msg._id === newMessage._id)) {
-                return prev;
-              }
-              // Replace the optimistic message with the real one from the server
-              const nonOptimistic = existingMsgs.filter(
-                (msg) => !msg._id.startsWith("optimistic-")
-              );
-              return { ...prev, [contactId]: [...nonOptimistic, newMessage] };
-            });
-          }
-        }); 
-        socketRef.current.on("chatHistory", (history) => {
-          if (selectedContact) {
-            setMessages((prev) => ({
-              ...prev,
-              [selectedContact._id]: history,
-            }));
-          }
-        });
-      } 
-      if (selectedContact) {
-        socketRef.current.emit("joinRoom", {
-          fromUser: user._id,
-          toUser: selectedContact._id,
-        });
-      }
- 
-      return () => {
-        if (socketRef.current) {
-          socketRef.current.disconnect();
-          socketRef.current = null;
-        }
-      };
-    }
-  }, [user, selectedContact]);  
-  const handleSendMessage = (text) => {
-    if (!selectedContact || !socketRef.current || !user?._id) return;
-
-    const messagePayload = {
-      content: text,
-      from: user._id,
-      to: selectedContact._id,
-    };
- 
-    socketRef.current.emit("sendMessage", messagePayload);
- 
-    const optimisticMessage = {
-      ...messagePayload,
-      _id: `optimistic-${Date.now()}`,  
-      senderId: user._id, 
-    };
-
-    setMessages((prev) => ({
-      ...prev,
-      [selectedContact._id]: [
-        ...(prev[selectedContact._id] || []),
-        optimisticMessage,
-      ],
-    }));
-  };
-
+  // ✅ Fetch connections when user is available
   const fetchConnection = async () => {
     try {
-      const res = await axios.get(BaseUrl + "/user/connections", {
+      const res = await axios.get(`${BaseUrl}/user/connections`, {
         withCredentials: true,
       });
       dispatch(addConnection(res?.data?.data));
@@ -127,6 +48,87 @@ export default function Chat() {
     }
   }, [user, navigate]);
 
+  // ✅ Socket setup & message handling
+  useEffect(() => {
+    if (!user?._id || !socketRef.current) return;
+
+    console.log("Socket connected:", socketRef.current.id);
+
+    // Join a room when selecting a contact
+    if (selectedContact) {
+      socketRef.current.emit("joinRoom", {
+        fromUser: user._id,
+        toUser: selectedContact._id,
+      });
+    }
+
+    // Listen for new messages
+    const handleReceiveMessage = (newMessage) => {
+      const contactId =
+        newMessage.senderId === user._id
+          ? selectedContact?._id
+          : newMessage.senderId;
+
+      if (contactId) {
+        setMessages((prev) => {
+          const existing = prev[contactId] || [];
+          if (existing.some((msg) => msg._id === newMessage._id)) return prev;
+
+          const filtered = existing.filter(
+            (msg) => !msg._id.startsWith("optimistic-")
+          );
+
+          return { ...prev, [contactId]: [...filtered, newMessage] };
+        });
+      }
+    };
+
+    const handleChatHistory = (history) => {
+      if (selectedContact) {
+        setMessages((prev) => ({
+          ...prev,
+          [selectedContact._id]: history,
+        }));
+      }
+    };
+
+    socketRef.current.on("receiveMessage", handleReceiveMessage);
+    socketRef.current.on("chatHistory", handleChatHistory);
+
+    // ✅ Cleanup listeners only (don’t disconnect global socket)
+    return () => {
+      socketRef.current.off("receiveMessage", handleReceiveMessage);
+      socketRef.current.off("chatHistory", handleChatHistory);
+    };
+  }, [user, selectedContact]);
+
+  // ✅ Send message
+  const handleSendMessage = (text) => {
+    if (!selectedContact || !socketRef.current || !user?._id) return;
+
+    const payload = {
+      content: text,
+      from: user._id,
+      to: selectedContact._id,
+    };
+
+    socketRef.current.emit("sendMessage", payload);
+
+    const optimisticMessage = {
+      ...payload,
+      _id: `optimistic-${Date.now()}`,
+      senderId: user._id,
+    };
+
+    setMessages((prev) => ({
+      ...prev,
+      [selectedContact._id]: [
+        ...(prev[selectedContact._id] || []),
+        optimisticMessage,
+      ],
+    }));
+  };
+
   const handleSelectContact = (contact) => {
     setSelectedContact(contact);
     setActiveView("chat");
@@ -137,9 +139,7 @@ export default function Chat() {
     setSelectedContact(null);
   };
 
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
 
   return (
     <ThemeProvider theme={chatMuiTheme}>
@@ -167,6 +167,7 @@ export default function Chat() {
             onSendMessage={handleSendMessage}
             isLoading={isLoading}
             loginUserId={user?._id}
+            loginEmail = {user?.emailId}
           />
         </div>
       </div>
